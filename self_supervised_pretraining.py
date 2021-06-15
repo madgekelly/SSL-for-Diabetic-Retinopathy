@@ -125,15 +125,10 @@ class PreTrainSimCLR:
             images = images.to(self.device)
             embeddings = self.encoder(images)
             embedding_1, embedding_2 = torch.tensor_split(embeddings, 2, dim=0)
-            print('encodings calculated')
             logits, labels, loss = self.criterion(embedding_1, embedding_2)
-            print('criterion calculated')
             self.optimiser.zero_grad()
-            print('zero grad')
             loss.backward()
-            print('gradients computed')
             self.optimiser.step()
-            print('weights updated')
             loss_sum += loss.item()
             top1, top5 = self.accuracy(logits, labels, topk=(1, 5))
             acc_sum_1 += top1
@@ -142,8 +137,6 @@ class PreTrainSimCLR:
                 progress_bar.set_postfix({'loss': loss.item()})
                 progress_bar.update(1)
             no_batches += 1
-            print(no_batches)
-            break
         loss = loss_sum / no_batches
         acc_1 = acc_sum_1 / no_batches
         acc_2 = acc_sum_2 / no_batches
@@ -173,7 +166,6 @@ def main():
     criterion = InfoNCELoss(args.temp, device, args.batch_size)
 
     pretrain_init = PreTrainSimCLR(criterion, optimiser, encoder, device)
-    print('here')
     pretrain_init.train_multiple_epochs(data_loader, args.num_epochs, args.save_freq, args.save_folder)
 
 
