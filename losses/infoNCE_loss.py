@@ -42,12 +42,12 @@ class InfoNCELoss(nn.Module):
 
     """
 
-    def __init__(self, temperature, device, batch_size=16):
+    def __init__(self, temperature, device, batch_size):
         super(InfoNCELoss, self).__init__()
-        self.criterion = nn.CrossEntropyLoss()
+        self.device = device
+        self.criterion = nn.CrossEntropyLoss().to(self.device)
         self.t = temperature
         self.batch_size = batch_size
-        self.device = device
 
     def _cosine_similarity(self, embedding_1, embedding_2):
         norm_embedding_1 = F.normalize(embedding_1, dim=1)

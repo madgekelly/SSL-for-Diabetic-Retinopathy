@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torchvision.models as models
 import torch
+from torch.nn.parallel import DistributedDataParallel
 
 
 class SimCLREncoder(nn.Module):
@@ -13,7 +14,7 @@ class SimCLREncoder(nn.Module):
         model(x) (Tensor): batch of encoded images
     """
 
-    def __init__(self, encoder_type, device, out_dim, checkpoint=None):
+    def __init__(self, encoder_type, out_dim, device, DDP=True, local_rank=None, checkpoint=None):
         super(SimCLREncoder, self).__init__()
         self.model_dict = {'resnet18': models.resnet18(),
                            'resnet50': models.resnet50(),
@@ -21,10 +22,12 @@ class SimCLREncoder(nn.Module):
         self.encoder = self.model_dict[encoder_type]
         self.out_dim = out_dim
         self.checkpoint = checkpoint
-        self.device = device
         self.in_size = self._get_output_shape()
         self.projection_head = self._get_projection_head(self.in_size)
-        self.model = self._get_model()
+        self.model = self._get_model().to(device)
+        if DDP:
+            self.model = DistributedDataParallel(self.model, device_ids=[local_rank], output_device=local_rank)
+
 
     def _get_output_shape(self, image_dim=(1, 3, 224, 224)):
         model = nn.Sequential(*list(self.encoder.children())[:-1],
@@ -38,7 +41,7 @@ class SimCLREncoder(nn.Module):
             resnet = self.encoder
             model = nn.Sequential(*list(resnet.children())[:-1],
                                   nn.Flatten(),
-                                  self.projection_head).to(self.device)
+                                  self.projection_head)
         return model
 
     def _get_projection_head(self, in_size):
@@ -52,3 +55,4 @@ class SimCLREncoder(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
