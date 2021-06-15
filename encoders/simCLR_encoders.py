@@ -26,8 +26,9 @@ class SimCLREncoder(nn.Module):
         self.projection_head = self._get_projection_head(self.in_size)
         self.model = self._get_model().to(device)
         if DDP:
+            # convert all batchnorm layers to sync batch norm!
+            self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             self.model = DistributedDataParallel(self.model, device_ids=[local_rank], output_device=local_rank)
-
 
     def _get_output_shape(self, image_dim=(1, 3, 224, 224)):
         model = nn.Sequential(*list(self.encoder.children())[:-1],

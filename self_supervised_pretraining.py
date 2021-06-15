@@ -37,7 +37,7 @@ parser.add_argument('-t', '--temp', default=0.1, type=float,
                     help='initial learning rate')
 parser.add_argument('-momentum', default=0.9, type=float,
                     help='momentum')
-parser.add_argument('-wd', '--weight-decay', default=0., type=float,
+parser.add_argument('-wd', '--weight_decay', default=0., type=float,
                     help='weight decay (default: 0.)')
 parser.add_argument('-p', '--save-freq', default=10, type=int,
                     help='frequency to save model weights (number of epochs)')
@@ -169,7 +169,7 @@ def main():
 
     encoder = SimCLREncoder(args.encoder_type, 128, device, local_rank=args.local_rank)
 
-    optimiser = optim.SGD(encoder.parameters(), lr=args.learning_rate, momentum=args.momentum)
+    optimiser = optim.SGD(encoder.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
     criterion = InfoNCELoss(args.temp, device, args.batch_size)
 
     pretrain_init = PreTrainSimCLR(criterion, optimiser, encoder, device)
