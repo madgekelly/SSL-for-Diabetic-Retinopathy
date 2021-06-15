@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from data.data_loader import DataSetFromFolder
 from data.data_transforms import SimCLRDataSetTransform
+from data.set_seed import set_seeds
 import argparse
 
 parser = argparse.ArgumentParser(description='simCLR pre-training')
@@ -156,6 +157,7 @@ def main():
     init_process_group(backend="nccl")
     torch.cuda.set_device(args.local_rank)
     torch.autograd.set_detect_anomaly(True)
+    set_seeds(0)
 
     transform = SimCLRDataSetTransform(s=1, size=224)
     data = DataSetFromFolder(args.image_path, args.label_path, transform, index=False, mode='pretrain')
