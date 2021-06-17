@@ -43,6 +43,8 @@ parser.add_argument('-p', '--save-freq', default=10, type=int,
                     help='frequency to save model weights (number of epochs)')
 
 # data parallel arguments
+parser.add_argument('--DDP',  type=bool, default=False,
+                    help='whether to use distributed data parallel')
 parser.add_argument('--local_rank', type=int, default=0)
 
 
@@ -146,25 +148,31 @@ class PreTrainSimCLR:
 
 def main():
     args = parser.parse_args()
-
-    init_process_group(backend="nccl")
-    torch.cuda.set_device(args.local_rank)
-    torch.autograd.set_detect_anomaly(True)
     set_seeds(0)
-
+    if args.DDP:
+        init_process_group(backend="nccl")
+        torch.cuda.set_device(args.local_rank)
+        torch.autograd.set_detect_anomaly(True)
+        device = torch.device("cuda", args.local_rank)
+    else:
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
     transform = SimCLRDataSetTransform(s=1, size=224)
     data = DataSetFromFolder(args.image_path, args.label_path, transform, index=False, mode='pretrain')
     # note DistributedSampler shuffles by default
-    data_sampler = DistributedSampler(data)
-    data_loader = DataLoader(data, batch_size=args.batch_size, num_workers=0, pin_memory=True, sampler=data_sampler)
 
-    device = torch.device("cuda", args.local_rank)
-
-    encoder = SimCLREncoder(args.encoder_type, 128, device, local_rank=args.local_rank)
+    if args.DDP:
+        data_sampler = DistributedSampler(data)
+        data_loader = DataLoader(data, batch_size=args.batch_size, num_workers=0, pin_memory=True, sampler=data_sampler)
+        encoder = SimCLREncoder(args.encoder_type, 128, device, local_rank=args.local_rank)
+    else:
+        data_loader = DataLoader(data, batch_size=args.batch_size)
+        encoder = SimCLREncoder(args.encoder_type, 128, device, DDP=False)
 
     optimiser = optim.SGD(encoder.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
     criterion = InfoNCELoss(args.temp, device, args.batch_size)
-
     pretrain_init = PreTrainSimCLR(criterion, optimiser, encoder, device)
     pretrain_init.train_multiple_epochs(data_loader, args.num_epochs, args.save_freq, args.save_folder)
 
