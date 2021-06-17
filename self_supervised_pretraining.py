@@ -2,10 +2,9 @@ import torch
 from tqdm.notebook import tqdm
 import csv
 from losses.infoNCE_loss import InfoNCELoss
-from encoders.simCLR_encoders import SimCLREncoder
+from models.simCLR_encoders import SimCLREncoder
 from torch.utils.data.distributed import DistributedSampler
 from torch.distributed import init_process_group
-from torch.nn.parallel import DistributedDataParallel
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from data.data_loader import DataSetFromFolder
