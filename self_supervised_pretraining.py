@@ -6,7 +6,6 @@ from models.simCLR_encoders import SimCLREncoder
 from models.optimisers import get_optimiser
 from torch.utils.data.distributed import DistributedSampler
 from torch.distributed import init_process_group
-import torch.optim as optim
 from torch.utils.data import DataLoader
 from data.data_loader import DataSetFromFolder
 from data.data_transforms import SimCLRDataSetTransform
@@ -44,6 +43,8 @@ parser.add_argument('-p', '--save-freq', default=10, type=int,
 parser.add_argument('--optimiser', default="SGD", type=str,
                     choices=["SGD", "LARS"],
                     help='optimiser to be used in training')
+parser.add_argument('--warm_starts', default=10, type=int,
+                    help='number of epochs for warms starts and cosine decacy')
 
 # data parallel arguments
 parser.add_argument('--DDP',  type=bool, default=False,
@@ -89,7 +90,7 @@ class PreTrainSimCLR:
                 res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
-    def train_multiple_epochs(self, data_loader, num_epochs, save_freq, folder, start=0):
+    def train_multiple_epochs(self, data_loader, num_epochs, save_freq, folder, args, start=0):
         """
         :param data_loader: a pytorch data loader of type image, label
         :param num_epochs: an integer that determines the number of epochs to train the model
@@ -102,6 +103,9 @@ class PreTrainSimCLR:
         for i in range(start, num_epochs):
             print('epoch {} of {}'.format(i, num_epochs))
             loss, acc_1, acc_2 = self.train_epoch(data_loader)
+            if self.scheduler is not None:
+                if i + 1 <= args.warm_starts:
+                    self.scheduler.step()
             print('loss: {} top-1 acc: {} top-5 acc: {}'.format(loss, acc_1, acc_2))
 
             # save to history every epoch
@@ -126,8 +130,6 @@ class PreTrainSimCLR:
         loss_sum = 0
         acc_sum_1 = 0
         acc_sum_2 = 0
-        if self.scheduler is not None:
-            self.scheduler.step()
         for i, (images, labels) in enumerate(data_loader):
             images = torch.cat(images, dim=0)
             images = images.to(self.device)
@@ -181,10 +183,10 @@ def main():
     scheduler = None
     # only use scheduler for LARS
     if args.optimiser == "LARS":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimiser, args.epochs, eta_min=0, last_epoch=-1)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimiser, args.num_epochs - args.warm_starts)
     criterion = InfoNCELoss(args.temp, device, args.batch_size)
     pretrain_init = PreTrainSimCLR(criterion, optimiser, encoder, scheduler, device)
-    pretrain_init.train_multiple_epochs(data_loader, args.num_epochs, args.save_freq, args.save_folder)
+    pretrain_init.train_multiple_epochs(data_loader, args.num_epochs, args.save_freq, args.save_folder, args)
 
 
 if __name__ == '__main__':
