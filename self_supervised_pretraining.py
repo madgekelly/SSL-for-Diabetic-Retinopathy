@@ -11,6 +11,7 @@ from data.data_loader import DataSetFromFolder
 from data.data_transforms import SimCLRDataSetTransform
 from data.set_seed import set_seeds
 import argparse
+import json
 
 parser = argparse.ArgumentParser(description='simCLR pre-training')
 parser.add_argument('-b', '--batch_size', default=256, type=int,
@@ -156,6 +157,10 @@ class PreTrainSimCLR:
 
 def main():
     args = parser.parse_args()
+
+    with open(args.save_folder + 'commandline_args.txt', 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
+
     set_seeds(0)
     if args.DDP:
         init_process_group(backend="nccl")
