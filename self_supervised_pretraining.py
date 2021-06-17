@@ -3,6 +3,7 @@ from tqdm.notebook import tqdm
 import csv
 from losses.infoNCE_loss import InfoNCELoss
 from models.simCLR_encoders import SimCLREncoder
+from models.optimisers import get_optimiser
 from torch.utils.data.distributed import DistributedSampler
 from torch.distributed import init_process_group
 import torch.optim as optim
@@ -40,6 +41,9 @@ parser.add_argument('-wd', '--weight_decay', default=0., type=float,
                     help='weight decay (default: 0.)')
 parser.add_argument('-p', '--save-freq', default=10, type=int,
                     help='frequency to save model weights (number of epochs)')
+parser.add_argument('--optimiser', default="SGD", type=str,
+                    choices=["SGD", "LARS"],
+                    help='optimiser to be used in training')
 
 # data parallel arguments
 parser.add_argument('--DDP',  type=bool, default=False,
@@ -49,7 +53,7 @@ parser.add_argument('--local_rank', type=int, default=0)
 
 class PreTrainSimCLR:
 
-    def __init__(self, criterion, optimiser, encoder, device):
+    def __init__(self, criterion, optimiser, encoder, scheduler, device):
         """
         :param criterion: the loss function
         :param optimiser: the model optimiser
@@ -60,6 +64,7 @@ class PreTrainSimCLR:
         self.device = device
         self.encoder = encoder
         self.optimiser = optimiser
+        self.scheduler = scheduler
 
     def accuracy(self, output, target, topk=(1,)):
         """
@@ -121,6 +126,8 @@ class PreTrainSimCLR:
         loss_sum = 0
         acc_sum_1 = 0
         acc_sum_2 = 0
+        if self.scheduler is not None:
+            self.scheduler.step()
         for i, (images, labels) in enumerate(data_loader):
             images = torch.cat(images, dim=0)
             images = images.to(self.device)
@@ -170,9 +177,13 @@ def main():
         data_loader = DataLoader(data, batch_size=args.batch_size)
         encoder = SimCLREncoder(args.encoder_type, 128, device, DDP=False)
 
-    optimiser = optim.SGD(encoder.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimiser = get_optimiser(args, encoder)
+    scheduler = None
+    # only use scheduler for LARS
+    if args.optimiser == "LARS":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimiser, args.epochs, eta_min=0, last_epoch=-1)
     criterion = InfoNCELoss(args.temp, device, args.batch_size)
-    pretrain_init = PreTrainSimCLR(criterion, optimiser, encoder, device)
+    pretrain_init = PreTrainSimCLR(criterion, optimiser, encoder, scheduler, device)
     pretrain_init.train_multiple_epochs(data_loader, args.num_epochs, args.save_freq, args.save_folder)
 
 
