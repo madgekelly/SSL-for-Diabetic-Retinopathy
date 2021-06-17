@@ -58,9 +58,9 @@ class PreTrainSimCLR:
         :param device: device ID for the model to be trained on
         """
         self.criterion = criterion
-        self.optimiser = optimiser
         self.device = device
         self.encoder = encoder
+        self.optimiser = optimiser
 
     def accuracy(self, output, target, topk=(1,)):
         """
