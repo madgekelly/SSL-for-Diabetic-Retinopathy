@@ -12,6 +12,7 @@ from data.data_transforms import SimCLRDataSetTransform
 from data.set_seed import set_seeds
 import argparse
 import json
+import torch.distributed as dist
 
 parser = argparse.ArgumentParser(description='simCLR pre-training')
 parser.add_argument('-b', '--batch_size', default=256, type=int,
@@ -46,6 +47,8 @@ parser.add_argument('--optimiser', default="SGD", type=str,
                     help='optimiser to be used in training')
 parser.add_argument('--warm_starts', default=10, type=int,
                     help='number of epochs for warms starts and cosine decacy')
+parser.add_argument('--aug', default=None,
+                    help='augmentation strategy number')
 
 # data parallel arguments
 parser.add_argument('--DDP',  type=bool, default=False,
@@ -116,8 +119,13 @@ class PreTrainSimCLR:
 
             # save model every save_freq epochs
             if (i % save_freq == 0) | (i == num_epochs - 1):
-                torch.save(self.encoder.get_model().state_dict(), '{}/epoch_{}'.format(folder, i))
-                torch.save(self.optimiser.state_dict(), '{}/optimiser_epoch_{}'.format(folder, i))
+                if args.DDP:
+                    if dist.get_rank() == 0:
+                        torch.save(self.encoder.get_model().state_dict(), '{}/epoch_{}'.format(folder, i))
+                        torch.save(self.optimiser.state_dict(), '{}/optimiser_epoch_{}'.format(folder, i))
+                else:
+                    torch.save(self.encoder.get_model().state_dict(), '{}/epoch_{}'.format(folder, i))
+                    torch.save(self.optimiser.state_dict(), '{}/optimiser_epoch_{}'.format(folder, i))
 
     def train_epoch(self, data_loader, progress_bar=False):
         """
@@ -172,16 +180,16 @@ def main():
             device = "cuda:0"
         else:
             device = "cpu"
-    transform = SimCLRDataSetTransform(s=1, size=224)
+    transform = SimCLRDataSetTransform(s=1, size=224, strategy=args.aug)
     data = DataSetFromFolder(args.image_path, args.label_path, transform, index=False, mode='pretrain')
     # note DistributedSampler shuffles by default
 
     if args.DDP:
         data_sampler = DistributedSampler(data)
-        data_loader = DataLoader(data, batch_size=args.batch_size, num_workers=0, pin_memory=True, sampler=data_sampler)
+        data_loader = DataLoader(data, batch_size=args.batch_size, num_workers=0, pin_memory=True, sampler=data_sampler, drop_last=True)
         encoder = SimCLREncoder(args.encoder_type, 128, device, local_rank=args.local_rank)
     else:
-        data_loader = DataLoader(data, batch_size=args.batch_size)
+        data_loader = DataLoader(data, batch_size=args.batch_size, drop_last=True)
         encoder = SimCLREncoder(args.encoder_type, 128, device, DDP=False)
 
     optimiser = get_optimiser(args, encoder)

@@ -26,11 +26,12 @@ class SimCLRDataSetTransform:
                                       framework
     """
 
-    def __init__(self, s=1, size=28):
+    def __init__(self, s=1, size=28, strategy=None):
         # self.base_transform = base_transform
         self.s = s
         self.size = size
         self.base_transform = self._augmentation()
+        self.strategy = strategy
 
     def _gaussian_blur(self, image):
         if random.uniform(0, 1) < 0.2:
@@ -41,12 +42,41 @@ class SimCLRDataSetTransform:
 
     def _augmentation(self):
         color_jitter = transforms.ColorJitter(0.8 * self.s, 0.8 * self.s, 0.8 * self.s, 0.2 * self.s)
-        augmentations = transforms.Compose([transforms.RandomResizedCrop(size=self.size),
-                                            transforms.RandomHorizontalFlip(),
-                                            transforms.RandomApply([color_jitter], p=0.8),
-                                            transforms.RandomGrayscale(p=0.2),
-                                            self._gaussian_blur,
-                                            transforms.ToTensor()])
+        if self.strategy == 1:
+            # no horizontal and vertical flip and rotation
+            augmentations = transforms.Compose([transforms.RandomResizedCrop(size=self.size),
+                                                # transforms.RandomHorizontalFlip(),
+                                                # transforms.RandomRotation(degrees=(0, 360), fill=1),
+                                                transforms.RandomApply([color_jitter], p=0.8),
+                                                transforms.RandomGrayscale(p=0.2),
+                                                self._gaussian_blur,
+                                                transforms.ToTensor()])
+        elif self.strategy == 2:
+            # no colour jitter and random greyscale
+            augmentations = transforms.Compose([transforms.RandomResizedCrop(size=self.size),
+                                                transforms.RandomHorizontalFlip(),
+                                                transforms.RandomRotation(degrees=(0, 360), fill=1),
+                                                # transforms.RandomApply([color_jitter], p=0.8),
+                                                # transforms.RandomGrayscale(p=0.2),
+                                                self._gaussian_blur,
+                                                transforms.ToTensor()])
+
+        elif self.strategy == 3:
+            # no gaussian blur or sobel filtering
+            augmentations = transforms.Compose([transforms.RandomResizedCrop(size=self.size),
+                                                transforms.RandomHorizontalFlip(),
+                                                transforms.RandomRotation(degrees=(0, 360), fill=1),
+                                                transforms.RandomApply([color_jitter], p=0.8),
+                                                transforms.RandomGrayscale(p=0.2),
+                                                # self._gaussian_blur,
+                                                transforms.ToTensor()])
+        else:
+            augmentations = transforms.Compose([transforms.RandomResizedCrop(size=self.size),
+                                                transforms.RandomHorizontalFlip(),
+                                                transforms.RandomApply([color_jitter], p=0.8),
+                                                transforms.RandomGrayscale(p=0.2),
+                                                self._gaussian_blur,
+                                                transforms.ToTensor()])
         return augmentations
 
     def __call__(self, image):
