@@ -30,8 +30,8 @@ class SimCLRDataSetTransform:
         # self.base_transform = base_transform
         self.s = s
         self.size = size
-        self.base_transform = self._augmentation()
         self.strategy = strategy
+        self.base_transform = self._augmentation()
 
     def _gaussian_blur(self, image):
         if random.uniform(0, 1) < 0.2:
