@@ -166,7 +166,7 @@ class PreTrainSimCLR:
 def main():
     args = parser.parse_args()
 
-    with open(args.save_folder + 'commandline_args.txt', 'w') as f:
+    with open(args.save_folder + '/commandline_args.txt', 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
     set_seeds(0)
